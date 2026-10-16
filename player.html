@@ -1,12 +1,26 @@
 <!doctype html><html lang="zh-Hant"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Baby Reveal｜賓客</title><link rel="stylesheet" href="style.css"><main><header class="hero"><small>BABY GENDER REVEAL</small><h1>BOY or GIRL?</h1><p>10 題猜猜樂 💙🩷</p></header><div id="app" class="card">載入中…</div></main><script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script><script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script><script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-database-compat.js"></script><script src="config.js"></script><script src="common.js"></script><script>
-let game=defaultGame,players={},me=localStorage.getItem('baby-player-id'),name=localStorage.getItem('baby-player-name')||'',selection=null;const phases={lobby:'等待主持人開始',question:'回答媽咪的問題',team:'選擇你目前支持的戰隊',roster:'本輪戰隊名單',reveal:'媽咪的答案揭曉',switch:'可以重新站隊',updated:'最新戰隊名單',finish:'最終性別揭曉'};
-function render(){if(!me||!players[me]){$('#app').innerHTML=`<h2>歡迎加入！</h2><p>輸入暱稱即可參加</p><input id="nick" maxlength="25" placeholder="你的暱稱" value="${esc(name)}"><button id="join">加入遊戲</button>`;$('#join').onclick=join;return}let p=players[me],r=game.round||0,q=QUESTIONS[r],phase=game.phase||'lobby',answer=p.answers?.[r],before=p.teams?.[r]?.before,after=p.teams?.[r]?.after;let html=`<p>👋 ${esc(p.name)}｜第 ${r+1}/10 題</p><h2>${phases[phase]}</h2>`;
+let game=defaultGame,players={},me=null,name=localStorage.getItem('baby-player-name')||'',selection=null;const phases={lobby:'等待主持人開始',question:'回答媽咪的問題',team:'選擇你目前支持的戰隊',roster:'本輪戰隊名單',reveal:'媽咪的答案揭曉',switch:'可以重新站隊',updated:'最新戰隊名單',finish:'最終性別揭曉'};
+function render(){if(!me){$('#app').textContent='正在驗證賓客身分…';return}if(!players[me]){$('#app').innerHTML=`<h2>歡迎加入！</h2><p>輸入暱稱即可參加</p><input id="nick" maxlength="25" placeholder="你的暱稱" value="${esc(name)}"><button id="join">加入遊戲</button>`;$('#join').onclick=join;return}let p=players[me],r=game.round||0,q=QUESTIONS[r],phase=game.phase||'lobby',answer=p.answers?.[r],before=p.teams?.[r]?.before,after=p.teams?.[r]?.after;let html=`<p>👋 ${esc(p.name)}｜第 ${r+1}/10 題</p><h2>${phases[phase]}</h2>`;
 if(phase==='question'){html+=`<h3>${esc(q[0])}</h3>`+q.slice(1,3).map((o,i)=>`<button class="choice ${answer===i?'selected':''}" data-answer="${i}">${esc(o)} ${answer===i?'✓':''}</button>`).join('')+'<small>選擇後會立即儲存，可在本階段修改。</small>'}
 if(phase==='team'||phase==='switch'){let t=phase==='team'?before:after||before;html+=`<p>${phase==='switch'?'媽咪的答案是：'+esc(q[1+q[3]]):'根據線索猜猜寶寶性別'}</p>`+['boy','girl'].map(v=>`<button class="choice ${t===v?'selected':''}" data-team="${v}">${labels[v]} ${t===v?'✓':''}</button>`).join('')+'<small>沒有換隊就保留原本戰隊。</small>'}
 if(phase==='roster'||phase==='updated')html+=renderTeams(players,r,phase==='updated');
 if(phase==='reveal')html+=`<div class="big">✨ ${esc(q[1+q[3]])} ✨</div><p class="center">${answer===q[3]?'你答對了！':'你這題沒有猜中'}</p>`;
 if(phase==='finish')html+=`<div class="big">🎉 IT'S A BOY! 💙</div><p class="center">${(p.teams?.[9]?.before)==='boy'?'你猜對了！':'謝謝參與！'}</p>`;
-if(phase==='lobby')html+='<p>等待主持人開始第一題。</p>';$('#app').innerHTML=html;document.querySelectorAll('[data-answer]').forEach(b=>b.onclick=()=>db.ref(`${room}/players/${me}/answers/${r}`).set(Number(b.dataset.answer)));document.querySelectorAll('[data-team]').forEach(b=>b.onclick=()=>db.ref(`${room}/players/${me}/teams/${r}/${phase==='team'?'before':'after'}`).set(b.dataset.team));}
-async function join(){const n=$('#nick').value.trim();if(!n)return alert('請輸入暱稱');try{if(!me)me=db.ref(`${room}/players`).push().key;await db.ref(`${room}/players/${me}`).update({name:n});name=n;localStorage.setItem('baby-player-id',me);localStorage.setItem('baby-player-name',n)}catch(e){alert('加入失敗：'+e.message)}}
-if(checkConfig()){db.ref(`${room}/game`).on('value',s=>{game=s.val()||defaultGame;render()});db.ref(`${room}/players`).on('value',s=>{players=s.val()||{};render()})}
+if(phase==='lobby')html+='<p>等待主持人開始第一題。</p>';$('#app').innerHTML=html;document.querySelectorAll('[data-answer]').forEach(b=>b.onclick=()=>db.ref(`${room}/players/${me}/answers/${r}`).set(Number(b.dataset.answer)).catch(e=>alert('答題失敗：'+e.message)));document.querySelectorAll('[data-team]').forEach(b=>b.onclick=()=>db.ref(`${room}/players/${me}/teams/${r}/${phase==='team'?'before':'after'}`).set(b.dataset.team).catch(e=>alert('選隊失敗：'+e.message)));}
+async function join(){const n=$('#nick').value.trim();if(!n)return alert('請輸入暱稱');try{await db.ref(`${room}/players/${me}/name`).set(n);name=n;localStorage.setItem('baby-player-name',n)}catch(e){alert('加入失敗：'+e.message)}}
+if(checkConfig()){
+  auth.onAuthStateChanged(async u=>{
+    try {
+      if(!u) { await auth.signInAnonymously(); return; }
+      if(!u.isAnonymous) {
+        $('#app').innerHTML='<h2>請使用賓客模式</h2><p>目前這個瀏覽器已登入主持人帳號。請改用手機或無痕視窗開啟賓客網址，以免共用登入身分。</p>';
+        return;
+      }
+      me=u.uid;
+      db.ref(`${room}/game`).on('value',s=>{game=s.val()||defaultGame;render()},e=>{$('#app').textContent='遊戲資料讀取失敗：'+e.message});
+      db.ref(`${room}/players`).on('value',s=>{players=s.val()||{};render()},e=>{$('#app').textContent='玩家資料讀取失敗：'+e.message});
+      render();
+    }catch(e){ $('#app').textContent='匿名登入失敗：'+e.message; }
+  },e=>{$('#app').textContent='驗證失敗：'+e.message});
+}
 </script></html>
