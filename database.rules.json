@@ -1,0 +1,25 @@
+{
+  "rules": {
+    "rooms": {
+      "main": {
+        "game": {
+          ".read": true,
+          ".write": "auth != null"
+        },
+        "players": {
+          ".read": true,
+          ".write": "auth != null",
+          "$playerId": {
+            ".write": "auth != null || (!data.exists() && newData.hasChildren(['name']) && newData.child('name').isString() && newData.child('name').val().length <= 25)",
+            "name": {".write": "auth != null"},
+            "answers": {"$round": {".write": "auth != null || (root.child('rooms/main/game/round').val() == $round * 1 && root.child('rooms/main/game/phase').val() == 'question' && newData.isNumber() && (newData.val() == 0 || newData.val() == 1))"}},
+            "teams": {"$round": {
+              "before": {".write": "auth != null || (root.child('rooms/main/game/round').val() == $round * 1 && root.child('rooms/main/game/phase').val() == 'team' && (newData.val() == 'boy' || newData.val() == 'girl'))"},
+              "after": {".write": "auth != null || (root.child('rooms/main/game/round').val() == $round * 1 && root.child('rooms/main/game/phase').val() == 'switch' && (newData.val() == 'boy' || newData.val() == 'girl'))"}
+            }}
+          }
+        }
+      }
+    }
+  }
+}
